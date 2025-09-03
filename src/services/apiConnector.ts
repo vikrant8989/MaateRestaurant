@@ -1,151 +1,20 @@
 import { API_URLS, HTTP_STATUS, ApiResponse, RestaurantProfile, LoginResponse, DashboardData, Order, OrderStats, PaginationInfo, OrderStatus, Review, ReviewStats, ReviewPaginationInfo } from './apiConfig';
-import { 
-  signInWithPhoneNumber, 
-  RecaptchaVerifier,
-  ConfirmationResult 
-} from 'firebase/auth';
-import { auth } from './firebaseConfig';
+import auth from '@react-native-firebase/auth';
+
+export { auth };
 // Storage keys
 const STORAGE_KEYS = {
   TOKEN: 'restaurant_token',
   USER_DATA: 'restaurant_user_data',
 };
-
 // API Connector Class
 class ApiConnector {
   private baseURL: string;
-  private recaptchaVerifier: RecaptchaVerifier | null = null;
-  private confirmationResult: ConfirmationResult | null = null;
+  private confirmationResult: any = null;
   constructor() {
     this.baseURL = API_URLS.SEND_OTP.split('/restaurant')[0]; // Extract base URL
   }
-  // Initialize reCAPTCHA verifier
-  initializeRecaptcha(containerOrId: string): void {
-    try {
-      this.recaptchaVerifier = new RecaptchaVerifier(auth, containerOrId, {
-        size: 'invisible',
-        callback: (response: any) => {
-          console.log("✅ [Firebase] reCAPTCHA solved");
-        },
-        'expired-callback': () => {
-          console.log("⚠️ [Firebase] reCAPTCHA expired");
-        }
-      });
-      console.log("✅ [Firebase] reCAPTCHA initialized");
-    } catch (error) {
-      console.error("❌ [Firebase] Error initializing reCAPTCHA:", error);
-      throw error;
-    }
-  }
 
-  // Send OTP via Firebase
-  async sendFirebaseOTP(phone: string): Promise<{ success: boolean; message: string }> {
-    try {
-      console.log("📞 [Firebase] Sending OTP to:", phone);
-      
-      if (!this.recaptchaVerifier) {
-        throw new Error('reCAPTCHA not initialized. Call initializeRecaptcha first.');
-      }
-
-      // Format phone number for Firebase (must include country code)
-      const formattedPhone = phone.startsWith('+') ? phone : `+91${phone}`;
-      
-      this.confirmationResult = await signInWithPhoneNumber(
-        auth, 
-        formattedPhone, 
-        this.recaptchaVerifier
-      );
-      
-      console.log("✅ [Firebase] OTP sent successfully");
-      return {
-        success: true,
-        message: 'OTP sent successfully to your phone number'
-      };
-    } catch (error: any) {
-      console.error("❌ [Firebase] Error sending OTP:", error);
-      
-      // Reset reCAPTCHA on error
-      if (this.recaptchaVerifier) {
-        this.recaptchaVerifier.clear();
-        this.recaptchaVerifier = null;
-      }
-      
-      throw new Error(error.message || 'Failed to send OTP');
-    }
-  }
-
-  // Verify Firebase OTP
-  async verifyFirebaseOTP(otp: string): Promise<{ 
-    success: boolean; 
-    message: string; 
-    firebaseToken?: string;
-    uid?: string;
-  }> {
-    try {
-      console.log("🔐 [Firebase] Verifying OTP:", otp);
-      
-      if (!this.confirmationResult) {
-        throw new Error('No OTP session found. Please request OTP first.');
-      }
-
-      const result = await this.confirmationResult.confirm(otp);
-      const firebaseToken = await result.user.getIdToken();
-      
-      console.log("✅ [Firebase] OTP verified successfully");
-      console.log("🔑 [Firebase] Firebase UID:", result.user.uid);
-      
-      return {
-        success: true,
-        message: 'OTP verified successfully',
-        firebaseToken,
-        uid: result.user.uid
-      };
-    } catch (error: any) {
-      console.error("❌ [Firebase] Error verifying OTP:", error);
-      throw new Error(error.message || 'Invalid OTP');
-    }
-  }
-  // Combined method: Verify Firebase OTP and authenticate with backend
-  async verifyOTPFirebase(
-    phone: string, 
-    otp: string
-  ): Promise<ApiResponse<LoginResponse>> {
-    try {
-      // Verify OTP with Firebase
-      const firebaseResult = await this.verifyFirebaseOTP(otp);
-      
-      if (!firebaseResult.success || !firebaseResult.firebaseToken) {
-        throw new Error('Firebase OTP verification failed');
-      }
-
-      // Send Firebase token to backend for authentication
-      const backendResponse = await this.post<LoginResponse>(
-        API_URLS.VERIFY_OTP, 
-        { 
-          phone, 
-          firebaseToken: firebaseResult.firebaseToken,
-          firebaseUid: firebaseResult.uid
-        }, 
-        null
-      );
-
-      console.log("✅ [API] Backend authentication successful");
-      return backendResponse;
-    } catch (error: any) {
-      console.error("❌ [API] Error in verifyOTPFirebase:", error);
-      throw error;
-    }
-  }
-
-  // Clean up Firebase resources
-  clearFirebaseAuth(): void {
-    if (this.recaptchaVerifier) {
-      this.recaptchaVerifier.clear();
-      this.recaptchaVerifier = null;
-    }
-    this.confirmationResult = null;
-    console.log("🧹 [Firebase] Auth resources cleared");
-  }
 
   // Get headers for requests
   private getHeaders(token: string | null, contentType: string = 'application/json'): HeadersInit {
@@ -164,16 +33,14 @@ class ApiConnector {
     return headers;
   }
 
-  // Generic request method
   private async makeRequest<T>(
     url: string,
     token: string | null,
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
     try {
-      // Create AbortController for timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
 
       const response = await fetch(url, {
         ...options,
@@ -183,47 +50,43 @@ class ApiConnector {
 
       clearTimeout(timeoutId);
 
-      // Debug: Log response details
-      console.log("🔍 [API] Response status:", response.status);
-      console.log("🔍 [API] Response headers:", response.headers);
-      
+      const responseText = await response.text();
+      console.log("🔍 [API] Response text:", responseText.substring(0, 200) + "...");
+
+      if (responseText.trim() === '') {
+        throw new Error('Empty response from server');
+      }
+
       let data: ApiResponse<T>;
       try {
-        const responseText = await response.text();
-        console.log("🔍 [API] Response text:", responseText.substring(0, 200) + "...");
-        
-        if (responseText.trim() === '') {
-          throw new Error('Empty response from server');
-        }
-        
         data = JSON.parse(responseText);
       } catch (parseError) {
-        console.error("❌ [API] JSON Parse Error:", parseError);
-        console.error("❌ [API] Response was not valid JSON");
-        throw new Error(`Server returned invalid response: ${parseError.message}`);
+        throw new Error("Invalid JSON from server");
       }
 
       if (!response.ok) {
-        // Handle specific error cases
-        if (response.status === HTTP_STATUS.UNAUTHORIZED) {
+        // Prefer backend message if provided
+        const errorMessage = data?.message || `HTTP ${response.status}: ${response.statusText}`;
+        
+        // Only show "Session expired" if server really means it
+        if (response.status === HTTP_STATUS.UNAUTHORIZED && !data?.message) {
           throw new Error('Session expired. Please login again.');
         }
 
-        throw new Error(data.message || `HTTP ${response.status}: ${response.statusText}`);
+        throw new Error(errorMessage);
       }
 
       return data;
     } catch (error: any) {
-      console.error('API Request Error:', error);
-      
-      // Handle timeout specifically
+
       if (error.name === 'AbortError') {
         throw new Error('Request timeout - server took too long to respond');
       }
-      
-      throw error;
+
+      return error;
     }
   }
+
 
   // POST request method
   private async post<T>(url: string, body: any, token: string | null): Promise<ApiResponse<T>> {
@@ -291,9 +154,6 @@ class ApiConnector {
         data = JSON.parse(responseText);
         console.log("📥 [API] Response parsed successfully:", data);
       } catch (parseError: any) {
-        console.error("❌ [API] JSON Parse Error in postFormData:", parseError);
-        console.error("❌ [API] Response was not valid JSON");
-        console.error("❌ [API] Full response text:", responseText);
         throw new Error(`Server returned invalid response: ${parseError.message}`);
       }
 
@@ -308,7 +168,6 @@ class ApiConnector {
 
       return data;
     } catch (error) {
-      console.error('❌ [API] FormData request error:', error);
       throw error;
     }
   }
@@ -316,23 +175,128 @@ class ApiConnector {
   // ===== RESTAURANT API METHODS =====
 
   // Send OTP
-  async sendOTP(phone: string, token: string | null): Promise<ApiResponse<{ phone: string; message: string }>> {
-    const response = await this.post<{ phone: string; message: string }>(API_URLS.SEND_OTP, { phone }, token);
-    return response;
-  }
+  // async sendOTP(phone: string, token: string | null): Promise<ApiResponse<{ phone: string; message: string }>> {
+  //   const response = await this.post<{ phone: string; message: string }>(API_URLS.SEND_OTP, { phone }, token);
+  //   return response;
+  // }
 
   // Verify OTP and login
-  async verifyOTP(phone: string, otp: string, token: string | null): Promise<ApiResponse<LoginResponse>> {
-    const response = await this.post<LoginResponse>(API_URLS.VERIFY_OTP, { phone, otp }, token);
+  // async verifyOTP(phone: string, otp: string, token: string | null): Promise<ApiResponse<LoginResponse>> {
+  //   const response = await this.post<LoginResponse>(API_URLS.VERIFY_OTP, { phone, otp }, token);
     
-    if (response.success && response.data?.token) {
-      // The original code saved the token here, but the new makeRequest doesn't have a saveToken method.
-      // Assuming the intent was to return the token if successful.
-      // For now, we'll just return the response.
+  //   if (response.success && response.data?.token) {
+  //     // The original code saved the token here, but the new makeRequest doesn't have a saveToken method.
+  //     // Assuming the intent was to return the token if successful.
+  //     // For now, we'll just return the response.
+  //   }
+    
+  //   return response;
+  // }
+  // Send OTP via React Native Firebase
+  async sendFirebaseOTP(phone: string): Promise<{ success: boolean; message: string }> {
+    try {
+      console.log("📞 [Firebase] Sending OTP to:", phone);
+      
+      // Format phone number for Firebase (must include country code)
+      const formattedPhone = phone.startsWith('+') ? phone : `+91${phone}`;
+      
+      this.confirmationResult = await auth().signInWithPhoneNumber(formattedPhone);
+      
+      console.log("✅ [Firebase] OTP sent successfully");
+      return {
+        success: true,
+        message: 'OTP sent successfully to your phone number'
+      };
+    } catch (error: any) {
+      console.error("❌ [Firebase] Error sending OTP:", error);
+      throw new Error(error.message || 'Failed to send OTP');
     }
-    
-    return response;
   }
+
+  // Verify Firebase OTP
+  async verifyFirebaseOTP(otp: string): Promise<{ 
+    success: boolean; 
+    message: string; 
+    firebaseToken?: string;
+    uid?: string;
+  }> {
+    try {
+      console.log("🔐 [Firebase] Verifying OTP:", otp);
+      
+      if (!this.confirmationResult) {
+        throw new Error('No OTP session found. Please request OTP first.');
+      }
+
+      const result = await this.confirmationResult.confirm(otp);
+      const firebaseToken = await result.user.getIdToken();
+      
+      console.log("✅ [Firebase] OTP verified successfully");
+      console.log("🔑 [Firebase] Firebase UID:", result.user.uid);
+      
+      return {
+        success: true,
+        message: 'OTP verified successfully',
+        firebaseToken,
+        uid: result.user.uid
+      };
+    } catch (error: any) {
+      console.error("❌ [Firebase] Error verifying OTP:", error);
+      throw new Error(error.message || 'Invalid OTP');
+    }
+  }
+
+  // Send OTP - calls backend first, then Firebase
+  async sendOTP(phone: string): Promise<{ success: boolean; message: string; sessionId?: string }> {
+    try {
+      console.log("HIiii")
+      // Step 1: Call backend to create restaurant record and session
+      const backendResponse = await this.post<{ phone: string; message: string; sessionId: string }>(
+        API_URLS.SEND_OTP, 
+        { phone }, 
+        null
+      );
+      
+      // Step 2: Send OTP via Firebase
+      await this.sendFirebaseOTP(phone);
+      
+      return {
+        success: true,
+        message: backendResponse.message,
+        sessionId: backendResponse.sessionId
+      };
+    } catch (error: any) {
+      throw error;
+    }
+  }
+
+  // Verify OTP - uses Firebase verification then backend authentication
+  async verifyOTP(phone: string, otp: string, sessionId: string): Promise<ApiResponse<LoginResponse>> {
+    try {
+      // Step 1: Verify OTP with Firebase
+      const firebaseResult = await this.verifyFirebaseOTP(otp);
+      
+      if (!firebaseResult.success || !firebaseResult.firebaseToken) {
+        throw new Error('Firebase OTP verification failed');
+      }
+
+      // Step 2: Send to backend for authentication
+      const backendResponse = await this.post<LoginResponse>(
+        API_URLS.VERIFY_OTP, 
+        { 
+          phone, 
+          sessionId,
+          firebaseToken: firebaseResult.firebaseToken,
+          firebaseUid: firebaseResult.uid
+        }, 
+        null
+      );
+
+      return backendResponse;
+    } catch (error: any) {
+      throw error;
+    }
+  }
+  
 
   // Register new restaurant
   async registerRestaurant(restaurantData: Partial<RestaurantProfile>, token: string | null): Promise<ApiResponse<{ restaurant: RestaurantProfile; message: string }>> {

@@ -12,47 +12,51 @@ import {
 import { Appbar, Button, IconButton, Text } from "react-native-paper";
 import { apiConnector } from "../../../utils";
 import { useAppDispatch, useAppSelector } from "../../../store/hooks";
-import { 
-  setCredentials, 
-  setLoading, 
-  setError, 
+import {
+  setCredentials,
+  setLoading,
+  setError,
   clearError,
   selectAuth,
   selectIsAuthenticated,
   selectToken,
   selectUser,
   selectIsLoading,
-  selectError
+  selectError,
 } from "../../../store/slices/authSlice";
 
 type Props = {
   mobile: string;
+  sessionId: string;
 };
 
-const OtpScreen = ({ mobile }: Props) => {
+const OtpScreen = ({ mobile, sessionId }: Props) => {
   const [otp, setOtp] = useState(["", "", "", ""]);
   const [timer, setTimer] = useState(60);
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
+
   const inputs = useRef<RNTextInput[]>([]);
   const router = useRouter();
   const dispatch = useAppDispatch();
-  
+
   // Get Redux state using selectors
   const authState = useAppSelector((state) => state.auth);
-  
+
   // Extract values from auth state
   const isAuthenticated = authState.isAuthenticated;
   const token = authState.token;
   const user = authState.user;
   const authLoading = authState.isLoading;
   const authError = authState.error;
-  
+
   // Get params from route
   const params = useLocalSearchParams();
-  const phoneNumber = params.mobile as string || mobile;
+  const phoneNumber = (params.mobile as string) || mobile;
 
-  const maskedMobile = phoneNumber ? `*****${phoneNumber.slice(-4)}` : "your number";
+  const maskedMobile = phoneNumber
+    ? `*****${phoneNumber.slice(-4)}`
+    : "your number";
 
   useEffect(() => {
     if (timer === 0) return;
@@ -75,7 +79,7 @@ const OtpScreen = ({ mobile }: Props) => {
     if (timer === 0) {
       setIsResending(true);
       try {
-        const response = await apiConnector.sendFirebaseOTP(phoneNumber);
+        const response = await apiConnector.sendOTP(phoneNumber);
         if (response.success) {
           setOtp(["", "", "", ""]);
           setTimer(60);
@@ -94,7 +98,7 @@ const OtpScreen = ({ mobile }: Props) => {
 
   const handleVerifyOTP = async () => {
     const otpString = otp.join("");
-    
+
     if (otpString.length !== 4) {
       Alert.alert("Invalid OTP", "Please enter the complete 4-digit OTP");
       return;
@@ -103,50 +107,54 @@ const OtpScreen = ({ mobile }: Props) => {
     setIsLoading(true);
     dispatch(setLoading(true));
     dispatch(clearError());
-    
+
     try {
       // Verify OTP
-      const response = await apiConnector.verifyOTPFirebase(phoneNumber, otpString);
+      const response = await apiConnector.verifyOTP(
+        phoneNumber,
+        otpString,
+        sessionId
+      );
+      console.log("Verify OTP Response:", response);
       if (response.success) {
         // Store authentication data in Redux
         const { token, restaurant } = response.data!;
-        
-        dispatch(setCredentials({
-          user: restaurant,
-          token: token
-        }));
-        
+
+        dispatch(
+          setCredentials({
+            user: restaurant,
+            token: token,
+          })
+        );
+
         console.log("✅ [OTP_SCREEN] Authentication data stored in Redux:", {
-          token: token ? `${token.substring(0, 20)}...` : 'null',
+          token: token ? `${token.substring(0, 20)}...` : "null",
           userId: restaurant?.id,
-          isProfile: restaurant?.isProfile
+          isProfile: restaurant?.isProfile,
         });
-        
+
         // OTP verified successfully
         if (response.data?.isProfile === false) {
           // Profile not completed - show message and navigate to profile setup
           Alert.alert(
-            "Profile Setup Required", 
-            response.data?.message || "Please complete your profile setup to continue.",
+            "Profile Setup Required",
+            response.data?.message ||
+              "Please complete your profile setup to continue.",
             [
               {
                 text: "Complete Profile",
-                onPress: () => router.push("/(restaurant)/profile")
-              }
+                onPress: () => router.push("/(restaurant)/profile"),
+              },
             ]
           );
         } else {
           // Profile completed - navigate to dashboard
-          Alert.alert(
-            "Login Successful", 
-            "Welcome back!",
-            [
-              {
-                text: "OK",
-                onPress: () => router.push("/(restaurant)")
-              }
-            ]
-          );
+          Alert.alert("Login Successful", "Welcome back!", [
+            {
+              text: "OK",
+              onPress: () => router.push("/(restaurant)"),
+            },
+          ]);
         }
       } else {
         const errorMessage = response.message || "Invalid OTP";
@@ -155,12 +163,10 @@ const OtpScreen = ({ mobile }: Props) => {
       }
     } catch (error: any) {
       console.error("Verify OTP Error:", error);
-      const errorMessage = error.message || "Failed to verify OTP. Please try again.";
+      const errorMessage =
+        error.message || "Failed to verify OTP. Please try again.";
       dispatch(setError(errorMessage));
-      Alert.alert(
-        "Error", 
-        errorMessage
-      );
+      Alert.alert("Error", errorMessage);
     } finally {
       setIsLoading(false);
       dispatch(setLoading(false));
@@ -172,17 +178,17 @@ const OtpScreen = ({ mobile }: Props) => {
       "Redux State Debug",
       `Auth State:
 Is Authenticated: ${isAuthenticated}
-Has Token: ${token ? 'Yes' : 'No'}
-Has User: ${user ? 'Yes' : 'No'}
-User ID: ${user?.id || 'N/A'}
-Is Profile Complete: ${user?.isProfile || 'N/A'}
+Has Token: ${token ? "Yes" : "No"}
+Has User: ${user ? "Yes" : "No"}
+User ID: ${user?.id || "N/A"}
+Is Profile Complete: ${user?.isProfile || "N/A"}
 Loading: ${authLoading}
-Error: ${authError || 'None'}`,
+Error: ${authError || "None"}`,
       [{ text: "OK" }]
     );
   };
 
-  const isOtpComplete = otp.every(digit => digit !== "");
+  const isOtpComplete = otp.every((digit) => digit !== "");
 
   return (
     <KeyboardAvoidingView
@@ -198,16 +204,12 @@ Error: ${authError || 'None'}`,
           title="Verification"
           titleStyle={{ color: "#FA4A0C" }}
         />
-        <Appbar.Action 
-          icon="bug" 
-          onPress={showReduxState}
-          color="#FA4A0C"
-        />
+        <Appbar.Action icon="bug" onPress={showReduxState} color="#FA4A0C" />
       </Appbar.Header>
 
       <View style={styles.content}>
         <Text style={styles.otpInfo}>Code has been sent to {maskedMobile}</Text>
-        
+
         <View style={styles.otpInputs}>
           {otp.map((digit, index) => (
             <RNTextInput
@@ -233,15 +235,15 @@ Error: ${authError || 'None'}`,
               00 : {timer.toString().padStart(2, "0")}
             </Text>
           </View>
-          <TouchableOpacity 
-            onPress={handleResend} 
+          <TouchableOpacity
+            onPress={handleResend}
             disabled={timer > 0 || isResending}
           >
             <Text
               style={[
                 styles.resendText,
-                { 
-                  color: timer === 0 && !isResending ? "#FA4A0C" : "#CCCCCC" 
+                {
+                  color: timer === 0 && !isResending ? "#FA4A0C" : "#CCCCCC",
                 },
               ]}
             >

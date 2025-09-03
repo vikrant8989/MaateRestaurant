@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "724260918053",
+    "project_id": "fir-project-maate",
+    "storage_bucket": "fir-project-maate.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:724260918053:android:1868b80e0a101c856c00cc",
+        "android_client_info": {
+          "package_name": "com.vikrant_himanshu.restaurantapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBPx_5hsa6oW1Fqo1sP3zd_mr_SFEl1bso"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

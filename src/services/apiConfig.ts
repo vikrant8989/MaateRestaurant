@@ -9,11 +9,10 @@ export const API_CONFIG = {
   // Base URL - Change this based on your environment
   // For local development, use your local IP address
   // For production, set EXPO_PUBLIC_API_URL environment variable
-  // BASE_URL: process.env.EXPO_PUBLIC_API_URL || 'http://18.xxx.xxx.xxx:3001',
-  BASE_URL: 'http://192.168.1.104:3001',
+  // BASE_URL: process.env.EXPO_PUBLIC_API_URL || 'https://maate-node-i1ir.vercel.app',
+  BASE_URL: 'http://192.168.1.102:3001',
   // API Version
   API_VERSION: '/api',
-  
   // Restaurant endpoints
   RESTAURANT: {
     SEND_OTP: '/restaurant/send-otp',
@@ -117,6 +116,8 @@ export interface ApiResponse<T = any> {
   message: string;
   data?: T;
   error?: string;
+  sessionId?: any; 
+
 }
 
 // Restaurant Profile Types

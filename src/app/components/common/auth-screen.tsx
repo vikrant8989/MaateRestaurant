@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -15,12 +15,10 @@ import { Button, Text, TextInput, TouchableRipple } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Blankscreen from "./blank-screen";
 import { apiConnector, validatePhone } from "../../../utils";
-
 const AuthScreen = () => {
   const [mobileNumber, setMobileNumber] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-
   const handleSkip = () => console.log("Skip pressed");
 
   const handleLogin = async () => {
@@ -32,15 +30,19 @@ const AuthScreen = () => {
 
     setIsLoading(true);
     try {
+      console.log("Sending OTP to:", mobileNumber);
+
       // Send OTP to the phone number
       const response = await apiConnector.sendOTP(mobileNumber);
-      
+      console.log("Send OTP Response:", response);
+
       if (response.success) {
         // Navigate to OTP screen with phone number
         router.push({
           pathname: "/(auth)/otp",
           params: { 
-            mobile: mobileNumber
+            mobile: mobileNumber,
+            sessionId: response.sessionId  // Pass sessionId if needed
           },
         });
       } else {

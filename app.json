@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.vikrant_himanshu.restaurantapp",
+      "googleServicesFile": "./google-services.json"
+    },
+   "plugins": [
+      "expo-router",
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "useFrameworks": "static"
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "20349759-6eff-44c0-9816-f7a23a5e4819"
+      }
+    },
+    "owner": "vikrant_himanshu"
+  }
+}
